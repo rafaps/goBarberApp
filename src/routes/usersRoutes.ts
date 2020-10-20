@@ -1,34 +1,52 @@
 import { Router } from 'express';
 import { getRepository } from 'typeorm';
-
+import multer from 'multer';
+import uploadConfig from '../config/upload';
 
 import User from '../models/User';
 import CreateUserService from '../services/CreateUserService';
+import UpdateUserAvatarService from '../services/UpdateUserAvatarService';
 
- const userRouter = Router();
+import ensureAuthentication from '../middlewares/ensureAuthentication';
 
- userRouter.get('/', async(request, response) => {
-    const userRepository = getRepository(User);
+const userRouter = Router();
+const upload = multer(uploadConfig);
 
-    const users =  await userRepository.find();
-    return response.json(users);
+userRouter.get('/', async (request, response) => {
+  const userRepository = getRepository(User);
 
- });
+  const users = await userRepository.find();
+  return response.json(users);
+});
 
- userRouter.post('/', async (request, response) => {
-    try {
-        const { name, email, password } = request.body;
+userRouter.post('/', async (request, response) => {
+  const { name, email, password } = request.body;
 
-        const createUser = new CreateUserService();
+  const createUser = new CreateUserService();
 
-        const user = await createUser.execute({name, email, password});
+  const user = await createUser.execute({ name, email, password });
 
-        delete user.password;
+  delete user.password;
 
-        return response.json(user);
-    } catch (err){
-        return response.status(400).json({error: err.message});
-    }
- });
+  return response.json(user);
+});
 
- export default userRouter;
+userRouter.patch(
+  '/avatar',
+  ensureAuthentication,
+  upload.single('avatar'),
+  async (request, response) => {
+    const updateUserAvatar = new UpdateUserAvatarService();
+
+    const userUpdated = await updateUserAvatar.execute({
+      user_id: request.user.id,
+      avatarFilename: request.file.filename,
+    });
+
+    delete userUpdated.password;
+
+    return response.json(userUpdated);
+  },
+);
+
+export default userRouter;
